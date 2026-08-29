@@ -39,6 +39,8 @@ dependencies:
   cloud_firestore: ^6.9.0
   flutter_slidable: ^4.0.3
   intl: ^0.20.3
+  flutter_localizations:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:

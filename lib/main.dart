@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart'; // Добавлен импорт для дат
+import 'package:intl/intl.dart';
 import 'firebase_options.dart';
 import 'auth_screen.dart'; 
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -23,6 +24,16 @@ class PlannerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Планер',
       theme: ThemeData(primarySwatch: Colors.indigo),
+      // НОВОЕ: Подключаем русский язык
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ru', 'RU'), // Русская локаль
+      ],
+      locale: const Locale('ru', 'RU'), // Принудительно ставим русский
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
@@ -46,13 +57,9 @@ class TaskScreen extends StatefulWidget {
 
 class _TaskScreenState extends State<TaskScreen> {
   final TextEditingController _textController = TextEditingController();
-  
-  // НОВАЯ ПЕРЕМЕННАЯ: Выбранная дата выполнения
   DateTime? _selectedDueDate;
 
-  // НОВАЯ ФУНКЦИЯ: Выбор даты и времени
   Future<void> _pickDateTime() async {
-    // 1. Выбираем дату
     DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: DateTime.now(),
@@ -61,15 +68,20 @@ class _TaskScreenState extends State<TaskScreen> {
     );
 
     if (pickedDate != null) {
-      // 2. Выбираем время
       TimeOfDay? pickedTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.now(),
+        // НОВОЕ: Принудительно 24-часовой формат
+        builder: (context, child) {
+          return MediaQuery(
+            data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+            child: child!,
+          );
+        },
       );
 
       if (pickedTime != null) {
         setState(() {
-          // Соединяем дату и время в одну переменную
           _selectedDueDate = DateTime(
             pickedDate.year,
             pickedDate.month,
@@ -93,13 +105,12 @@ class _TaskScreenState extends State<TaskScreen> {
       'isDone': false,
       'createdAt': FieldValue.serverTimestamp(),
       'userId': user.uid,
-      // НОВОЕ ПОЛЕ: Сохраняем дату выполнения (если не выбрана, будет null)
       'dueDate': _selectedDueDate != null ? Timestamp.fromDate(_selectedDueDate!) : null,
     });
 
     _textController.clear();
     setState(() {
-      _selectedDueDate = null; // Сбрасываем дату после добавления
+      _selectedDueDate = null;
     });
   }
 
@@ -141,7 +152,6 @@ class _TaskScreenState extends State<TaskScreen> {
                   child: TextField(
                     controller: _textController,
                     decoration: InputDecoration(
-                      // Показываем выбранную дату прямо в поле ввода
                       hintText: _selectedDueDate == null 
                           ? 'Введите новую задачу...' 
                           : 'Срок: ${DateFormat('dd.MM.yyyy HH:mm').format(_selectedDueDate!)}',
@@ -149,7 +159,6 @@ class _TaskScreenState extends State<TaskScreen> {
                     ),
                   ),
                 ),
-                // НОВАЯ КНОПКА: Календарик
                 IconButton(
                   icon: Icon(
                     Icons.calendar_today,
@@ -191,11 +200,9 @@ class _TaskScreenState extends State<TaskScreen> {
                     String title = taskData['title'] ?? 'Без названия';
                     bool isDone = taskData['isDone'] ?? false;
 
-                    // НОВОЕ: Читаем дату выполнения из базы
                     Timestamp? dueTimestamp = taskData['dueDate'] as Timestamp?;
                     DateTime? dueDate = dueTimestamp?.toDate();
                     
-                    // НОВОЕ: Проверяем, просрочена ли задача
                     bool isOverdue = dueDate != null && dueDate.isBefore(DateTime.now()) && !isDone;
 
                     return Slidable(
@@ -237,12 +244,11 @@ class _TaskScreenState extends State<TaskScreen> {
                               color: isDone ? Colors.grey : Colors.black,
                             ),
                           ),
-                          // НОВОЕ: Показываем дату под текстом задачи
                           subtitle: dueDate != null
                               ? Text(
                                   DateFormat('dd.MM.yyyy HH:mm').format(dueDate),
                                   style: TextStyle(
-                                    color: isOverdue ? Colors.red : Colors.grey, // Красный, если просрочено
+                                    color: isOverdue ? Colors.red : Colors.grey,
                                     fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
                                   ),
                                 )
