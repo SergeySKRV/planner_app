@@ -16,11 +16,9 @@ import 'package:flutter/foundation.dart'
 /// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
+    // ИЗМЕНЕНО: Теперь для Web возвращаем настройки, а не ошибку
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -48,6 +46,17 @@ class DefaultFirebaseOptions {
         );
     }
   }
+
+  // ДОБАВЛЕНО: Настройки для Web из вашей консоли
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDUYybVTzdWaHglc82kSNqgK3UnKGIkNj4',
+    appId: '1:137313096799:web:4a854356a646e8de05f7ea',
+    messagingSenderId: '137313096799',
+    projectId: 'planner-app-371ca',
+    authDomain: 'planner-app-371ca.firebaseapp.com',
+    storageBucket: 'planner-app-371ca.firebasestorage.app',
+    measurementId: 'G-X2VD5SC5BQ',
+  );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBbC27qHsHY1yHzY2Nnr7sKlYnh2f6XTdI',
