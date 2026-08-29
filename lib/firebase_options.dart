@@ -16,7 +16,6 @@ import 'package:flutter/foundation.dart'
 /// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
-    // ИЗМЕНЕНО: Теперь для Web возвращаем настройки, а не ошибку
     if (kIsWeb) {
       return web;
     }
@@ -47,7 +46,6 @@ class DefaultFirebaseOptions {
     }
   }
 
-  // ДОБАВЛЕНО: Настройки для Web из вашей консоли
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyDUYybVTzdWaHglc82kSNqgK3UnKGIkNj4',
     appId: '1:137313096799:web:4a854356a646e8de05f7ea',
