@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'auth_screen.dart'; 
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -78,7 +79,7 @@ class _TaskScreenState extends State<TaskScreen> {
     await FirebaseAuth.instance.signOut();
   }
 
-  @override
+   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -88,7 +89,7 @@ class _TaskScreenState extends State<TaskScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.exit_to_app),
-            onPressed: _logout, // Кнопка выхода
+            onPressed: _logout,
           )
         ],
       ),
@@ -117,27 +118,15 @@ class _TaskScreenState extends State<TaskScreen> {
           ),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
-              // ФИЛЬТРУЕМ ЗАДАЧИ ТОЛЬКО ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
               stream: FirebaseFirestore.instance
                   .collection('tasks')
                   .where('userId', isEqualTo: user?.uid)
                   .orderBy('createdAt', descending: false)
                   .snapshots(),
               builder: (context, snapshot) {
-                // ЕСЛИ ЕСТЬ ОШИБКА — ПОКАЗЫВАЕМ ЕЁ НА ЭКРАНЕ!
                 if (snapshot.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Text(
-                        'Ошибка чтения:\n${snapshot.error}',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  );
+                  return Center(child: Text('Ошибка: ${snapshot.error}'));
                 }
-
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -153,25 +142,51 @@ class _TaskScreenState extends State<TaskScreen> {
                     String title = taskData['title'] ?? 'Без названия';
                     bool isDone = taskData['isDone'] ?? false;
 
-                    return Card(
-                      child: ListTile(
-                        leading: IconButton(
-                          icon: Icon(
+                    // ОБЕРТЫВАЕМ КАРТОЧКУ В SLIDABLE
+                    return Slidable(
+                      key: ValueKey(doc.id),
+                      // Свайп вправо (Отметить выполнение)
+                      startActionPane: ActionPane(
+                        motion: const ScrollMotion(),
+                        children: [
+                          SlidableAction(
+                            onPressed: (context) => _toggleDone(doc.id, isDone),
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            icon: isDone ? Icons.undo : Icons.check,
+                            label: isDone ? 'Вернуть' : 'Готово',
+                          ),
+                        ],
+                      ),
+                      // Свайп влево (Удалить)
+                      endActionPane: ActionPane(
+                        motion: const ScrollMotion(),
+                        children: [
+                          SlidableAction(
+                            onPressed: (context) => _deleteTask(doc.id),
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            icon: Icons.delete,
+                            label: 'Удалить',
+                          ),
+                        ],
+                      ),
+                      // Сама карточка с задачей
+                      child: Card(
+                        child: ListTile(
+                          leading: Icon(
                             isDone ? Icons.check_box : Icons.check_box_outline_blank,
                             color: Colors.indigo,
                           ),
-                          onPressed: () => _toggleDone(doc.id, isDone),
-                        ),
-                        title: Text(
-                          title,
-                          style: TextStyle(
-                            decoration: isDone ? TextDecoration.lineThrough : TextDecoration.none,
-                            color: isDone ? Colors.grey : Colors.black,
+                          title: Text(
+                            title,
+                            style: TextStyle(
+                              decoration: isDone ? TextDecoration.lineThrough : TextDecoration.none,
+                              color: isDone ? Colors.grey : Colors.black,
+                            ),
                           ),
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _deleteTask(doc.id),
+                          // При нажатии на саму карточку тоже меняем статус
+                          onTap: () => _toggleDone(doc.id, isDone),
                         ),
                       ),
                     );
