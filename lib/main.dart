@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // Добавлен импорт для дат
 import 'firebase_options.dart';
 import 'auth_screen.dart'; 
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -22,11 +23,9 @@ class PlannerApp extends StatelessWidget {
     return MaterialApp(
       title: 'Планер',
       theme: ThemeData(primarySwatch: Colors.indigo),
-      // StreamBuilder следит за состоянием авторизации
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
-          // Если пользователь есть - показываем задачи, если нет - экран входа
           if (snapshot.connectionState == ConnectionState.active) {
             final user = snapshot.data;
             return user == null ? const AuthScreen() : const TaskScreen();
@@ -47,11 +46,45 @@ class TaskScreen extends StatefulWidget {
 
 class _TaskScreenState extends State<TaskScreen> {
   final TextEditingController _textController = TextEditingController();
+  
+  // НОВАЯ ПЕРЕМЕННАЯ: Выбранная дата выполнения
+  DateTime? _selectedDueDate;
+
+  // НОВАЯ ФУНКЦИЯ: Выбор даты и времени
+  Future<void> _pickDateTime() async {
+    // 1. Выбираем дату
+    DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+
+    if (pickedDate != null) {
+      // 2. Выбираем время
+      TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+
+      if (pickedTime != null) {
+        setState(() {
+          // Соединяем дату и время в одну переменную
+          _selectedDueDate = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
+    }
+  }
 
   Future<void> _addTask() async {
     if (_textController.text.trim().isEmpty) return;
 
-    // ПОЛУЧАЕМ ID ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -59,10 +92,15 @@ class _TaskScreenState extends State<TaskScreen> {
       'title': _textController.text.trim(),
       'isDone': false,
       'createdAt': FieldValue.serverTimestamp(),
-      'userId': user.uid, // Привязываем задачу к пользователю!
+      'userId': user.uid,
+      // НОВОЕ ПОЛЕ: Сохраняем дату выполнения (если не выбрана, будет null)
+      'dueDate': _selectedDueDate != null ? Timestamp.fromDate(_selectedDueDate!) : null,
     });
 
     _textController.clear();
+    setState(() {
+      _selectedDueDate = null; // Сбрасываем дату после добавления
+    });
   }
 
   Future<void> _deleteTask(String docId) async {
@@ -79,7 +117,7 @@ class _TaskScreenState extends State<TaskScreen> {
     await FirebaseAuth.instance.signOut();
   }
 
-   @override
+  @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -102,11 +140,22 @@ class _TaskScreenState extends State<TaskScreen> {
                 Expanded(
                   child: TextField(
                     controller: _textController,
-                    decoration: const InputDecoration(
-                      hintText: 'Введите новую задачу...',
-                      border: OutlineInputBorder(),
+                    decoration: InputDecoration(
+                      // Показываем выбранную дату прямо в поле ввода
+                      hintText: _selectedDueDate == null 
+                          ? 'Введите новую задачу...' 
+                          : 'Срок: ${DateFormat('dd.MM.yyyy HH:mm').format(_selectedDueDate!)}',
+                      border: const OutlineInputBorder(),
                     ),
                   ),
+                ),
+                // НОВАЯ КНОПКА: Календарик
+                IconButton(
+                  icon: Icon(
+                    Icons.calendar_today,
+                    color: _selectedDueDate == null ? Colors.grey : Colors.indigo,
+                  ),
+                  onPressed: _pickDateTime,
                 ),
                 const SizedBox(width: 10),
                 IconButton(
@@ -142,10 +191,15 @@ class _TaskScreenState extends State<TaskScreen> {
                     String title = taskData['title'] ?? 'Без названия';
                     bool isDone = taskData['isDone'] ?? false;
 
-                    // ОБЕРТЫВАЕМ КАРТОЧКУ В SLIDABLE
+                    // НОВОЕ: Читаем дату выполнения из базы
+                    Timestamp? dueTimestamp = taskData['dueDate'] as Timestamp?;
+                    DateTime? dueDate = dueTimestamp?.toDate();
+                    
+                    // НОВОЕ: Проверяем, просрочена ли задача
+                    bool isOverdue = dueDate != null && dueDate.isBefore(DateTime.now()) && !isDone;
+
                     return Slidable(
                       key: ValueKey(doc.id),
-                      // Свайп вправо (Отметить выполнение)
                       startActionPane: ActionPane(
                         motion: const ScrollMotion(),
                         children: [
@@ -158,7 +212,6 @@ class _TaskScreenState extends State<TaskScreen> {
                           ),
                         ],
                       ),
-                      // Свайп влево (Удалить)
                       endActionPane: ActionPane(
                         motion: const ScrollMotion(),
                         children: [
@@ -171,7 +224,6 @@ class _TaskScreenState extends State<TaskScreen> {
                           ),
                         ],
                       ),
-                      // Сама карточка с задачей
                       child: Card(
                         child: ListTile(
                           leading: Icon(
@@ -185,7 +237,16 @@ class _TaskScreenState extends State<TaskScreen> {
                               color: isDone ? Colors.grey : Colors.black,
                             ),
                           ),
-                          // При нажатии на саму карточку тоже меняем статус
+                          // НОВОЕ: Показываем дату под текстом задачи
+                          subtitle: dueDate != null
+                              ? Text(
+                                  DateFormat('dd.MM.yyyy HH:mm').format(dueDate),
+                                  style: TextStyle(
+                                    color: isOverdue ? Colors.red : Colors.grey, // Красный, если просрочено
+                                    fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                )
+                              : null,
                           onTap: () => _toggleDone(doc.id, isDone),
                         ),
                       ),
